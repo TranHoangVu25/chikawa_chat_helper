@@ -37,24 +37,23 @@ async function startServer() {
 
     // Define endpoint for starting new conversations (POST /chat)
     app.post('/chat', async (req: Request, res: Response) => {
-      // Extract user message from request body
-      const initialMessage = req.body.message
-      // Generate unique thread ID using current timestamp
-      const threadId = Date.now().toString()
-      // Log the incoming message for debugging
-      console.log(initialMessage)
-      try {
-        // Call our AI agent with the message and new thread ID
-        const response = await callAgent(client, initialMessage, threadId)
-        // Send successful response with thread ID and AI response
-        res.json({ threadId, response })
-      } catch (error) {
-        // Log any errors that occur during agent execution
-        console.error('Error starting conversation:', error)
-        // Send error response with 500 status code
-        res.status(500).json({ error: 'Internal server error' })
-      }
-    })
+  const { message, threadId } = req.body
+
+  // ✅ Nếu client chưa có threadId thì mới tạo mới
+  const currentThreadId = threadId || Date.now().toString()
+
+  console.log(`🗣️ User: ${message}`)
+  console.log(`🧵 Thread ID: ${currentThreadId}`)
+
+  try {
+    const response = await callAgent(client, message, currentThreadId)
+    res.json({ threadId: currentThreadId, response })
+  } catch (error) {
+    console.error('Error starting conversation:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 
     // Define endpoint for continuing existing conversations (POST /chat/:threadId)
     app.post('/chat/:threadId', async (req: Request, res: Response) => {

@@ -113,38 +113,89 @@ async function createVectorSearchIndex(): Promise<void> {
   }
 }
 
-import fs from "fs";
+// import fs from "fs";
 
+// async function generateSyntheticData(): Promise<Item[]> {
+//   console.log("📂 Loading product data from products_Backpack.json...");
+
+//   try {
+//     // Đọc nội dung file JSON
+//     const rawData = fs.readFileSync("products_Amenity.json", "utf8");
+//     const jsonData = JSON.parse(rawData);
+
+//     // Kiểm tra định dạng dữ liệu (phải là mảng)
+//     if (!Array.isArray(jsonData)) {
+//       throw new Error("Invalid JSON format: expected an array of items.");
+//     }
+
+//     // Validate từng phần tử theo schema itemSchema (giống cách parse từ Gemini)
+//     const validatedData = jsonData.map((item, index) => {
+//       try {
+//         return itemSchema.parse(item);
+//       } catch (err) {
+//         console.error(`❌ Validation failed for item at index ${index}:`, err);
+//         throw err;
+//       }
+//     });
+
+//     console.log(`✅ Successfully loaded ${validatedData.length} items from JSON file.`);
+//     return validatedData;
+//   } catch (error) {
+//     console.error("❌ Error loading JSON data:", error);
+//     throw error;
+//   }
+// }
+
+import fs from "fs"
+import path from "path"
+import { itemSchema } from "./data" // Schema bạn đã định nghĩa
+import type { Item } from "./data"
+
+// Đọc tất cả các file JSON trong thư mục "data"
 async function generateSyntheticData(): Promise<Item[]> {
-  console.log("📂 Loading product data from products_Backpack.json...");
+  const dataDir = path.resolve(__dirname, "../data") // 📁 trỏ tới thư mục "data" cùng cấp với file này
+  const files = fs.readdirSync(dataDir).filter(f => f.endsWith(".json")) // chỉ lấy file .json
+
+  console.log(`📂 Loading product data from ${files.length} JSON files in /data...`)
 
   try {
-    // Đọc nội dung file JSON
-    const rawData = fs.readFileSync("products_Amenity.json", "utf8");
-    const jsonData = JSON.parse(rawData);
+    const allData: Item[] = []
 
-    // Kiểm tra định dạng dữ liệu (phải là mảng)
-    if (!Array.isArray(jsonData)) {
-      throw new Error("Invalid JSON format: expected an array of items.");
+    for (const file of files) {
+      const filePath = path.join(dataDir, file)
+      console.log(`📄 Reading ${filePath}...`)
+
+      const rawData = fs.readFileSync(filePath, "utf8")
+      const jsonData = JSON.parse(rawData)
+
+      if (!Array.isArray(jsonData)) {
+        console.warn(`⚠️ File ${file} does not contain an array, skipping.`)
+        continue
+      }
+
+      // Validate từng phần tử theo schema
+      const validatedData = jsonData.map((item, index) => {
+        try {
+          return itemSchema.parse(item)
+        } catch (err) {
+          console.error(`❌ Validation failed in ${file} at index ${index}:`, err)
+          return null
+        }
+      }).filter(Boolean) as Item[]
+
+      console.log(`✅ Loaded ${validatedData.length} valid items from ${file}`)
+      allData.push(...validatedData)
     }
 
-    // Validate từng phần tử theo schema itemSchema (giống cách parse từ Gemini)
-    const validatedData = jsonData.map((item, index) => {
-      try {
-        return itemSchema.parse(item);
-      } catch (err) {
-        console.error(`❌ Validation failed for item at index ${index}:`, err);
-        throw err;
-      }
-    });
+    console.log(`🎯 Total ${allData.length} valid items loaded from all files.`)
+    return allData
 
-    console.log(`✅ Successfully loaded ${validatedData.length} items from JSON file.`);
-    return validatedData;
   } catch (error) {
-    console.error("❌ Error loading JSON data:", error);
-    throw error;
+    console.error("❌ Error loading JSON data:", error)
+    throw error
   }
 }
+
 
 
 // Function to create a searchable text summary from item data (based on new schema)
