@@ -113,39 +113,6 @@ async function createVectorSearchIndex(): Promise<void> {
   }
 }
 
-// import fs from "fs";
-
-// async function generateSyntheticData(): Promise<Item[]> {
-//   console.log("📂 Loading product data from products_Backpack.json...");
-
-//   try {
-//     // Đọc nội dung file JSON
-//     const rawData = fs.readFileSync("products_Amenity.json", "utf8");
-//     const jsonData = JSON.parse(rawData);
-
-//     // Kiểm tra định dạng dữ liệu (phải là mảng)
-//     if (!Array.isArray(jsonData)) {
-//       throw new Error("Invalid JSON format: expected an array of items.");
-//     }
-
-//     // Validate từng phần tử theo schema itemSchema (giống cách parse từ Gemini)
-//     const validatedData = jsonData.map((item, index) => {
-//       try {
-//         return itemSchema.parse(item);
-//       } catch (err) {
-//         console.error(`❌ Validation failed for item at index ${index}:`, err);
-//         throw err;
-//       }
-//     });
-
-//     console.log(`✅ Successfully loaded ${validatedData.length} items from JSON file.`);
-//     return validatedData;
-//   } catch (error) {
-//     console.error("❌ Error loading JSON data:", error);
-//     throw error;
-//   }
-// }
-
 import fs from "fs"
 import path from "path"
 import { itemSchema } from "./data" // Schema bạn đã định nghĩa
@@ -205,7 +172,7 @@ async function createItemSummary(item: Item): Promise<string> {
     const name = item.name || "Unnamed item"
     const description = item.description || "No description available"
     const vendor = item.vendor || "Unknown vendor"
-    const price = item.price ? `${item.price} USD` : "Price not available"
+    const price = item.price ? `${item.price} ¥` : "Price not available"
     const status = item.status || "Available"
 
     // Convert categories array [{ name, slug }] → readable string
