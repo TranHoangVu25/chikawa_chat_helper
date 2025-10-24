@@ -22,32 +22,44 @@ const llm = new ChatGoogleGenerativeAI({
 })
 
 // Define schema for furniture item structure using Zod validation
+// ✅ Schema cho sản phẩm Chiikawa (từ itemSchema)
 const itemSchema = z.object({
-  item_id: z.string(),                    // Unique identifier for the item
-  item_name: z.string(),                  // Name of the furniture item
-  item_description: z.string(),           // Detailed description of the item
-  brand: z.string(),                      // Brand/manufacturer name
-  manufacturer_address: z.object({        // Nested object for manufacturer location
-    street: z.string(),                   // Street address
-    city: z.string(),                     // City name
-    state: z.string(),                    // State/province
-    postal_code: z.string(),              // ZIP/postal code
-    country: z.string(),                  // Country name
-  }),
-  prices: z.object({                      // Nested object for pricing information
-    full_price: z.number(),               // Regular price
-    sale_price: z.number(),               // Discounted price
-  }),
-  categories: z.array(z.string()),        // Array of category tags
-  user_reviews: z.array(                  // Array of customer reviews
+  id: z.string(), // Từ item_id
+  name: z.string(), // Từ item_name
+  description: z.string(), // Từ item_description
+
+  // Giá được tách từ prices.full_price hoặc sale_price
+  price: z.number(),
+
+  // Trạng thái — có thể sinh từ logic hoặc giữ tạm default
+  status: z.string().default("Available"),
+
+  // Ảnh — giả sử chưa có trong dữ liệu gốc, để rỗng
+  images: z.array(z.string()).default([]),
+
+  // categories từ mảng string → mảng object { name, slug }
+  categories: z.array(
     z.object({
-      review_date: z.string(),            // Date of review
-      rating: z.number(),                 // Numerical rating (1-5)
-      comment: z.string(),                // Review text comment
+      name: z.string(),
+      slug: z.string(),
     })
   ),
-  notes: z.string(),                      // Additional notes about the item
+
+  // characters — không có trong dữ liệu gốc → để trống
+  characters: z.array(
+    z.object({
+      name: z.string(),
+      slug: z.string(),
+    })
+  ).default([]),
+
+  // vendor = brand (thương hiệu)
+  vendor: z.string(),
+
+  // variants — không có trong dữ liệu gốc → optional
+  variants: z.array(z.any()).optional(),
 })
+
 
 // Create TypeScript type from Zod schema for type safety
 type Item = z.infer<typeof itemSchema>
@@ -72,7 +84,6 @@ async function setupDatabaseAndCollection(): Promise<void> {
     console.log("'items' collection already exists in 'inventory_database' database")
   }
 }
-
 // Function to create vector search index
 async function createVectorSearchIndex(): Promise<void> {
   try {
@@ -102,48 +113,71 @@ async function createVectorSearchIndex(): Promise<void> {
   }
 }
 
+import fs from "fs";
+
 async function generateSyntheticData(): Promise<Item[]> {
-  // Create detailed prompt instructing AI to generate furniture store data
-  const prompt = `You are a helpful assistant that generates furniture store item data. Generate 10 furniture store items. Each record should include the following fields: item_id, item_name, item_description, brand, manufacturer_address, prices, categories, user_reviews, notes. Ensure variety in the data and realistic values.
+  console.log("📂 Loading product data from products_Backpack.json...");
 
-  ${parser.getFormatInstructions()}`  // Add format instructions from parser
+  try {
+    // Đọc nội dung file JSON
+    const rawData = fs.readFileSync("products_Amenity.json", "utf8");
+    const jsonData = JSON.parse(rawData);
 
-  // Log progress to console
-  console.log("Generating synthetic data...")
+    // Kiểm tra định dạng dữ liệu (phải là mảng)
+    if (!Array.isArray(jsonData)) {
+      throw new Error("Invalid JSON format: expected an array of items.");
+    }
 
-  // Send prompt to AI and get response
-  const response = await llm.invoke(prompt)
-  // Parse AI response into structured array of Item objects
-  return parser.parse(response.content as string)
+    // Validate từng phần tử theo schema itemSchema (giống cách parse từ Gemini)
+    const validatedData = jsonData.map((item, index) => {
+      try {
+        return itemSchema.parse(item);
+      } catch (err) {
+        console.error(`❌ Validation failed for item at index ${index}:`, err);
+        throw err;
+      }
+    });
+
+    console.log(`✅ Successfully loaded ${validatedData.length} items from JSON file.`);
+    return validatedData;
+  } catch (error) {
+    console.error("❌ Error loading JSON data:", error);
+    throw error;
+  }
 }
 
-// Function to create a searchable text summary from furniture item data
+
+// Function to create a searchable text summary from item data (based on new schema)
 async function createItemSummary(item: Item): Promise<string> {
-  // Return Promise for async compatibility (though this function is synchronous)
   return new Promise((resolve) => {
-    // Extract manufacturer country information
-    const manufacturerDetails = `Made in ${item.manufacturer_address.country}`
-    // Join all categories into comma-separated string
-    const categories = item.categories.join(", ")
-    // Convert user reviews array into readable text format
-    const userReviews = item.user_reviews
-      .map(
-        (review) =>
-          `Rated ${review.rating} on ${review.review_date}: ${review.comment}`
-      )
-      .join(" ")  // Join multiple reviews with spaces
-    // Create basic item information string
-    const basicInfo = `${item.item_name} ${item.item_description} from the brand ${item.brand}`
-    // Format pricing information
-    const price = `At full price it costs: ${item.prices.full_price} USD, On sale it costs: ${item.prices.sale_price} USD`
-    // Get additional notes
-    const notes = item.notes
+    // Extract fields safely
+    const name = item.name || "Unnamed item"
+    const description = item.description || "No description available"
+    const vendor = item.vendor || "Unknown vendor"
+    const price = item.price ? `${item.price} USD` : "Price not available"
+    const status = item.status || "Available"
 
-    // Combine all information into comprehensive summary for vector search
-    const summary = `${basicInfo}. Manufacturer: ${manufacturerDetails}. Categories: ${categories}. Reviews: ${userReviews}. Price: ${price}. Notes: ${notes}`
+    // Convert categories array [{ name, slug }] → readable string
+    const categories =
+      item.categories && item.categories.length > 0
+        ? item.categories.map((c) => c.name).join(", ")
+        : "Uncategorized"
 
-    // Resolve promise with complete summary
-    resolve(summary)
+    // Convert characters array (if any)
+    const characters =
+      item.characters && item.characters.length > 0
+        ? item.characters.map((c) => c.name).join(", ")
+        : "No characters associated"
+
+    // Build text summary
+    const summary = `${name} — ${description}. 
+Vendor: ${vendor}. 
+Price: ${price}. 
+Status: ${status}. 
+Categories: ${categories}. 
+Characters: ${characters}.`
+
+    resolve(summary.trim())
   })
 }
 
@@ -182,28 +216,29 @@ async function seedDatabase(): Promise<void> {
         metadata: {...record},                         // Preserve original item data
       }))
     )
-    
-    // Store each record with vector embeddings in MongoDB
-    for (const record of recordsWithSummaries) {
-      // Create vector embeddings and store in MongoDB Atlas using Gemini
-      await MongoDBAtlasVectorSearch.fromDocuments(
-        [record],                    // Array containing single record
-        new GoogleGenerativeAIEmbeddings({            // Google embedding model
-          apiKey: process.env.GOOGLE_API_KEY,         // Google API key
-          modelName: "text-embedding-004",            // Google's standard embedding model (768 dimensions)
-        }),
-        {
-          collection,                // MongoDB collection reference
-          indexName: "vector_index", // Name of vector search index
-          textKey: "embedding_text", // Field name for searchable text
-          embeddingKey: "embedding", // Field name for vector embeddings
-        }
-      )
+    // Create embedding model once (không cần khởi tạo mỗi vòng lặp)
+const embeddingModel = new GoogleGenerativeAIEmbeddings({
+  apiKey: process.env.GOOGLE_API_KEY,
+  modelName: "text-embedding-004",
+});
 
-      // Log progress for each successfully processed item
-      console.log("Successfully processed & saved record:", record.metadata.item_id)
-    }
+// Tạo vector store kết nối tới MongoDB
+const vectorStore = new MongoDBAtlasVectorSearch(embeddingModel, {
+  collection,
+  indexName: "vector_index",
+  textKey: "embedding_text",
+  embeddingKey: "embedding",
+});
 
+// Ghi log
+console.log("🔄 Generating embeddings and saving to MongoDB...");
+
+// Tạo embedding text và lưu
+for (const record of recordsWithSummaries) {
+  await vectorStore.addDocuments([record]); // addDocuments sẽ tự embed + insert
+
+  console.log("✅ Successfully processed & saved record:", record.metadata.id);
+}
     // Log completion of entire seeding process
     console.log("Database seeding completed")
 
