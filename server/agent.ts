@@ -196,15 +196,16 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
         const prompt = ChatPromptTemplate.fromMessages([
           [
             "system", // System message defines the AI's role and behavior
-            `You are a helpful E-commerce Chatbot Agent for a furniture store. 
+            `You are a helpful E-commerce Chatbot Agent for a Chikawa goods shop. 
 
-IMPORTANT: You have access to an item_lookup tool that searches the furniture inventory database. ALWAYS use this tool when customers ask about furniture items, even if the tool returns errors or empty results.
+IMPORTANT: You have access to an item_lookup tool that searches the goods inventory database. ALWAYS use this tool when customers ask about goods items, even if the tool returns errors or empty results.
 
 When using the item_lookup tool:
-- If it returns results, provide helpful details about the furniture items
+- If it returns results, provide helpful details about the goods
 - If it returns an error or no results, acknowledge this and offer to help in other ways
 - If the database appears to be empty, let the customer know that inventory might be being updated
 
+You are chatbot for Japanese's shop and the item can be shipped to many country in Asia
 Current time: {time}`,
           ],
           new MessagesPlaceholder("messages"), // Placeholder for conversation history
@@ -246,7 +247,6 @@ Current time: {time}`,
         configurable: { thread_id: thread_id } // Conversation thread identifier
       }
     )
-
     // Extract the final response from the conversation
     const response = finalState.messages[finalState.messages.length - 1].content
     console.log("Agent response:", response)
