@@ -165,39 +165,51 @@ async function generateSyntheticData(): Promise<Item[]> {
 
 
 
-// Function to create a searchable text summary from item data (based on new schema)
 async function createItemSummary(item: Item): Promise<string> {
   return new Promise((resolve) => {
     // Extract fields safely
-    const name = item.name || "Unnamed item"
-    const description = item.description || "No description available"
-    const vendor = item.vendor || "Unknown vendor"
-    const price = item.price ? `${item.price} ¥` : "Price not available"
-    const status = item.status || "Available"
+    const name = item.name || "Unnamed item";
+    const description = item.description || "No description available";
+    const vendor = item.vendor || "Unknown vendor";
+    const price = item.price ? `${item.price} ¥` : "Price not available";
 
-    // Convert categories array [{ name, slug }] → readable string
+    // ✅ Handle stock status meaningfully
+    let statusText = "Unknown";
+    if (item.status === "available") {
+      statusText = "Available (in stock)";
+    } else if (item.status === "sold_out") {
+      statusText = "Sold out (currently unavailable)";
+    } else {
+      statusText = item.status || "Unknown";
+    }
+
+    // Convert categories array → readable string
     const categories =
       item.categories && item.categories.length > 0
         ? item.categories.map((c) => c.name).join(", ")
-        : "Uncategorized"
+        : "Uncategorized";
 
-    // Convert characters array (if any)
+    // Convert characters array → readable string
     const characters =
       item.characters && item.characters.length > 0
         ? item.characters.map((c) => c.name).join(", ")
-        : "No characters associated"
+        : "No associated characters";
 
-    // Build text summary
-    const summary = `${name} — ${description}. 
-Vendor: ${vendor}. 
-Price: ${price}. 
-Status: ${status}. 
-Categories: ${categories}. 
-Characters: ${characters}.`
+    // ✅ Build clear, semantic summary text
+    const summary = `
+Product name: ${name}.
+Description: ${description}.
+Vendor: ${vendor}.
+Price: ${price}.
+Status: ${statusText}.
+Categories: ${categories}.
+Characters: ${characters}.
+`.trim();
 
-    resolve(summary.trim())
-  })
+    resolve(summary);
+  });
 }
+
 
 // Main function to populate database with AI-generated furniture data
 async function seedDatabase(): Promise<void> {

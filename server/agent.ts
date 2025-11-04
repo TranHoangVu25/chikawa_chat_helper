@@ -206,7 +206,9 @@ When using the item_lookup tool:
 - If it returns an error or no results, acknowledge this and offer to help in other ways
 - If the database appears to be empty, let the customer know that inventory might be being updated
 
-You are chatbot for Japanese's shop and the item can be shipped to many country in Asia
+You are chatbot for Japanese's shop and the item can be shipped to many country in Asia.
+
+With each good you show for customer, attach one link  images for each goods or stock to show what these good look like
 Current time: {time}`,
           ],
           new MessagesPlaceholder("messages"), // Placeholder for conversation history
