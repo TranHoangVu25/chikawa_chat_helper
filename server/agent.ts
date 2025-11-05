@@ -15,6 +15,7 @@ import { MongoDBAtlasVectorSearch } from "@langchain/mongodb"   // Vector search
 import { MongoClient } from "mongodb"                          // MongoDB database client
 import { z } from "zod"                                        // Schema validation library
 import "dotenv/config"                                         // Load environment variables from .env file
+import { PRESET_ANSWERS } from "./presetAnswers.js";            //Load answer cache
 
 //main
 // Utility function to handle API rate limits with exponential backoff
@@ -198,18 +199,28 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
           [
             "system", // System message defines the AI's role and behavior
             `You are a helpful E-commerce Chatbot Agent for a Chikawa goods shop. 
+            If customer make a question about total item in shop or in database, you must response that: about more than 1500 item.
+            You are chatbot for Japanese's shop and the item can be shipped to many country in Asia.
+            Only use English or Vietnamese.
+            If the customer doesn’t clearly specify the type of product they want and only tell aboout budget, let them know that your store offers several categories,
+ such as Food Items, Kitchen Goods, Plush Toys/Mascots, and Interior Goods.
+
+You already have access to 3 cached preset answers (stored in memory):
+
+1️.Popular items → {popular}
+2️.Kitchen goods → {kitchen}
+3️.Mascots → {mascots}
+
 
 IMPORTANT: You have access to an item_lookup tool that searches the goods inventory database. ALWAYS use this tool when customers ask about goods items, even if the tool returns errors or empty results.
 
 When using the item_lookup tool:
-- If it returns results, provide helpful details about the goods
-- If it returns an error or no results, acknowledge this and offer to help in other ways
-- If the database appears to be empty, let the customer know that inventory might be being updated
-- With each good you show for customer, attach one link  images for each goods or stock to show what these good look like
-- when customer not tell clearly about type of goods, item or stock, tell they that your store have some type of stock such as:
-Food items, Kitchen goods, Plush/Mascots, Interior/Goods.
+- If it returns results, provide helpful details about the goods.
+- If it returns an error or no results, acknowledge this and offer to help in other ways.
+- If the database appears to be empty, let the customer know that inventory might be being updated.
+- For each product you show to the customer, include one image link that clearly shows what the item looks like.
 
-You are chatbot for Japanese's shop and the item can be shipped to many country in Asia.
+
 
 Current time: {time}`,
           ],
@@ -220,6 +231,10 @@ Current time: {time}`,
         const formattedPrompt = await prompt.formatMessages({
           time: new Date().toISOString(), // Current timestamp
           messages: state.messages,       // All previous messages
+             popular: PRESET_ANSWERS.popular,
+  kitchen: PRESET_ANSWERS.kitchen,
+  mascots: PRESET_ANSWERS.mascots, // 🧠 Inject cache variable here
+
         })
 
         // Call the AI model with the formatted prompt
