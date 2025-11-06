@@ -15,7 +15,7 @@ import { MongoDBAtlasVectorSearch } from "@langchain/mongodb"   // Vector search
 import { MongoClient } from "mongodb"                          // MongoDB database client
 import { z } from "zod"                                        // Schema validation library
 import "dotenv/config"                                         // Load environment variables from .env file
-import { PRESET_ANSWERS } from "./presetAnswers.js";            //Load answer cache
+import { PRESET_ANSWERS } from "../cache/presetAnswers.js";            //Load answer cache
 
 //main
 // Utility function to handle API rate limits with exponential backoff
@@ -234,7 +234,6 @@ Current time: {time}`,
              popular: PRESET_ANSWERS.popular,
   kitchen: PRESET_ANSWERS.kitchen,
   mascots: PRESET_ANSWERS.mascots, // 🧠 Inject cache variable here
-
         })
 
         // Call the AI model with the formatted prompt

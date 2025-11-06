@@ -5,7 +5,7 @@ import express, { Express, Request, Response } from "express"
 // Import MongoDB client for database connection
 import { MongoClient } from "mongodb"
 // Import our custom AI agent function
-import { callAgent } from './agent'
+import { callAgent } from './agents/agent'
 
 // Create Express application instance
 const app: Express = express()
