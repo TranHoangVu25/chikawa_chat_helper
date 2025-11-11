@@ -16,6 +16,7 @@ import { MongoClient } from "mongodb"                          // MongoDB databa
 import { z } from "zod"                                        // Schema validation library
 import "dotenv/config"                                         // Load environment variables from .env file
 import { PRESET_ANSWERS } from "../cache/presetAnswers.js";            //Load answer cache
+import { connectConversationDB, ConversationModel } from "../models/conversation.model.ts"
 
 //main
 // Utility function to handle API rate limits with exponential backoff
@@ -270,6 +271,27 @@ Current time: {time}`,
     const response = finalState.messages[finalState.messages.length - 1].content
     console.log("Agent response:", response)
 
+await connectConversationDB(process.env.MONGODB_ATLAS_URI)
+
+    const messages = finalState.messages.map((m: any) => ({
+      sender: m._getType?.() === "human" ? "user" : "bot",
+      content: m.content,
+      timestamp: new Date(),
+    }))
+
+    await ConversationModel.findOneAndUpdate(
+      { threadId: thread_id },
+      {
+        threadId: thread_id,
+        userId: 1, // hoặc lấy từ token/session nếu có
+        agent_type: 1,
+        messages: messages,
+        createdAt: new Date(),
+      },
+      { upsert: true, new: true }
+    )
+
+    console.log("💾 Conversation saved to Atlas")
     return response // Return the AI's final response
 
   } catch (error: any) {
