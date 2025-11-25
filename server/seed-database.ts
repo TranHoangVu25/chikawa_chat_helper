@@ -22,7 +22,7 @@ const llm = new ChatGoogleGenerativeAI({
 })
 
 // Define schema for furniture item structure using Zod validation
-// ✅ Schema cho sản phẩm Chiikawa (từ itemSchema)
+//  Schema cho sản phẩm Chiikawa (từ itemSchema)
 const itemSchema = z.object({
   id: z.string(), // Từ item_id
   name: z.string(), // Từ item_name
@@ -120,10 +120,10 @@ import type { Item } from "./data"
 
 // Đọc tất cả các file JSON trong thư mục "data"
 async function generateSyntheticData(): Promise<Item[]> {
-  const dataDir = path.resolve(__dirname, "../data") // 📁 trỏ tới thư mục "data" cùng cấp với file này
+  const dataDir = path.resolve(__dirname, "../data") //  trỏ tới thư mục "data" cùng cấp với file này
   const files = fs.readdirSync(dataDir).filter(f => f.endsWith(".json")) // chỉ lấy file .json
 
-  console.log(`📂 Loading product data from ${files.length} JSON files in /data...`)
+  console.log(` Loading product data from ${files.length} JSON files in /data...`)
 
   try {
     const allData: Item[] = []
@@ -145,20 +145,20 @@ async function generateSyntheticData(): Promise<Item[]> {
         try {
           return itemSchema.parse(item)
         } catch (err) {
-          console.error(`❌ Validation failed in ${file} at index ${index}:`, err)
+          console.error(` Validation failed in ${file} at index ${index}:`, err)
           return null
         }
       }).filter(Boolean) as Item[]
 
-      console.log(`✅ Loaded ${validatedData.length} valid items from ${file}`)
+      console.log(` Loaded ${validatedData.length} valid items from ${file}`)
       allData.push(...validatedData)
     }
 
-    console.log(`🎯 Total ${allData.length} valid items loaded from all files.`)
+    console.log(` Total ${allData.length} valid items loaded from all files.`)
     return allData
 
   } catch (error) {
-    console.error("❌ Error loading JSON data:", error)
+    console.error(" Error loading JSON data:", error)
     throw error
   }
 }
@@ -173,7 +173,7 @@ async function createItemSummary(item: Item): Promise<string> {
     const vendor = item.vendor || "Unknown vendor";
     const price = item.price ? `${item.price} ¥` : "Price not available";
 
-    // ✅ Handle stock status meaningfully
+    //  Handle stock status meaningfully
     let statusText = "Unknown";
     if (item.status === "available") {
       statusText = "Available (in stock)";
@@ -195,7 +195,7 @@ async function createItemSummary(item: Item): Promise<string> {
         ? item.characters.map((c) => c.name).join(", ")
         : "No associated characters";
 
-    // ✅ Build clear, semantic summary text
+    //  Build clear, semantic summary text
     const summary = `
 Product name: ${name}.
 Description: ${description}.
@@ -261,7 +261,7 @@ const vectorStore = new MongoDBAtlasVectorSearch(embeddingModel, {
 });
 
 // Ghi log
-console.log("🔄 Generating embeddings and saving to MongoDB...");
+console.log(" Generating embeddings and saving to MongoDB...");
 
 // Tạo embedding text và lưu
 for (const record of recordsWithSummaries) {
