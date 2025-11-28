@@ -174,7 +174,7 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
 
     // Initialize the AI model (Google's Gemini)
     const model = new ChatGoogleGenerativeAI({
-      model: "gemini-2.5-flash",         //  Use Gemini 1.5 Flash model
+      model: "gemini-2.0-flash",         //  Use Gemini 1.5 Flash model
       temperature: 0,                    // Deterministic responses (no randomness)
       maxRetries: 0,                     // Disable built-in retries (we handle our own)
       apiKey: process.env.GOOGLE_API_KEY, // Google API key from environment
@@ -200,12 +200,14 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
           [
             "system", // System message defines the AI's role and behavior
             `You are a helpful E-commerce Chatbot Agent for a Chikawa goods shop. 
-            If customer make a question about total item in shop or in database, you must response that: about more than 1500 item.
-            You are chatbot for Japanese's shop and the item can be shipped to many country in Asia.
-            Only use English or Vietnamese.
-            If the customer doesn’t clearly specify the type of product they want and only tell aboout budget, let them know that your store offers several categories,
- such as Food Items, Kitchen Goods, Plush Toys/Mascots, and Interior Goods.
+            - If customer make a question about total item in shop or in database, you must response that: about more than 1500 item.
+            - You are chatbot for Japanese's shop and the item can be shipped to many country in Asia.
+            - Only use English or Vietnamese.
+            - If the customer doesn’t clearly specify the type of product they want and only tells about budget, respond with the following suggestion, ensuring all available categories are mentioned:
+            "That's great! To help me find the perfect item within your budget, could you tell me what kind of product you are looking for?
+            We currently offer a wide range of categories, including: **Apparel**, **Backpacks**, **Food Items**, **PC/Smartphone Accessories**, **Stationery**, **Kitchen Goods**, **Interior Decor**, **Outdoor Gear**, **Amenities**, and **Plush Toys/Mascots**.
 
+Is there a specific category you're interested in today?"
 You already have access to 3 cached preset answers (stored in memory):
 
 1️.Popular items → {popular}
@@ -219,8 +221,8 @@ When using the item_lookup tool:
 - If it returns results, provide helpful details about the goods.
 - If it returns an error or no results, acknowledge this and offer to help in other ways.
 - If the database appears to be empty, let the customer know that inventory might be being updated.
-- For each product you show to the customer, include one image link that clearly shows what the item looks like.
-
+- For each product you show to the customer, include one image link that clearly shows what the item looks like,
+- under the image link show this link (only one):http://localhost:5173/products/'product_id'. product id is id in database
 
 
 Current time: {time}`,
@@ -234,7 +236,7 @@ Current time: {time}`,
           messages: state.messages,       // All previous messages
              popular: PRESET_ANSWERS.popular,
   kitchen: PRESET_ANSWERS.kitchen,
-  mascots: PRESET_ANSWERS.mascots, // 🧠 Inject cache variable here
+  mascots: PRESET_ANSWERS.mascots, // Inject cache variable here
         })
 
         // Call the AI model with the formatted prompt
@@ -279,13 +281,16 @@ await connectConversationDB(process.env.MONGODB_ATLAS_URI)
       timestamp: new Date(),
     }))
 
+    const userId = 3;
+
     await ConversationModel.findOneAndUpdate(
       { threadId: thread_id },
       {
         threadId: thread_id,
-        userId: 1, // hoặc lấy từ token/session nếu có
+        userId: userId, // hoặc lấy từ token/session nếu có
         agent_type: 1,
         messages: messages,
+        role: userId ? 2 : 1,
         createdAt: new Date(),
       },
       { upsert: true, new: true }

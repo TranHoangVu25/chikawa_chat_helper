@@ -163,8 +163,6 @@ async function generateSyntheticData(): Promise<Item[]> {
   }
 }
 
-
-
 async function createItemSummary(item: Item): Promise<string> {
   return new Promise((resolve) => {
     // Extract fields safely
