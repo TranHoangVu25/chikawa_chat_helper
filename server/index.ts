@@ -6,6 +6,7 @@ import mongoose from "mongoose"
 import { MongoClient } from "mongodb"
 import { callAgent } from './agents/agent'
 import conversationRoutes from "./routes/conversation.routes"
+import { authenticateToken } from './middleware/authMiddleware'
 
 // ====================
 // Khởi tạo Express app
@@ -59,15 +60,17 @@ async function startServer() {
     console.log("✅ MongoClient connected!")
 
     // POST /chat - tạo hoặc tiếp tục conversation mới
-    app.post('/chat', async (req: Request, res: Response) => {
+    app.post('/chat', authenticateToken, async (req: Request, res: Response) => {
       const { message, threadId } = req.body
       const currentThreadId = threadId || Date.now().toString()
+      const userId = req.userId
 
+      console.log(`🔍 Authenticated User ID:`, userId)
       console.log(`🗣️ User: ${message}`)
       console.log(`🧵 Thread ID: ${currentThreadId}`)
 
       try {
-        const response = await callAgent(client, message, currentThreadId)
+        const response = await callAgent(client, message, currentThreadId, userId)
         res.json({ threadId: currentThreadId, response })
       } catch (error) {
         console.error('❌ Error starting conversation:', error)
@@ -76,15 +79,34 @@ async function startServer() {
     })
 
     // POST /chat/:threadId - tiếp tục conversation hiện tại
-    app.post('/chat/:threadId', async (req: Request, res: Response) => {
+    app.post('/chat/:threadId', authenticateToken, async (req: Request, res: Response) => {
       const { threadId } = req.params
       const { message } = req.body
+      const userId = req.userId
+
       try {
-        const response = await callAgent(client, message, threadId)
+        const response = await callAgent(client, message, threadId, userId)
         res.json({ response })
       } catch (error) {
         console.error('❌ Error in chat:', error)
         res.status(500).json({ error: 'Internal server error' })
+      }
+    })
+
+    app.post('/guest/chat', async (req: Request, res: Response) => {
+      const { message, threadId } = req.body
+const currentThreadId = threadId || `guest_${Date.now().toString()}`
+
+      console.log(`🗣️ [Guest] User: ${message}`)
+      console.log(`🧵 [Guest] Thread ID: ${currentThreadId}`)
+
+      try {
+        // Pass userId = null and shouldSave = false
+        const response = await callAgent(client, message, currentThreadId, null, false)
+        res.json({ threadId: currentThreadId, response })
+      } catch (error: any) {
+        console.error('❌ Error in guest chat:', error.message || error)
+        res.status(500).json({ error: error.message || 'Internal server error' })
       }
     })
 

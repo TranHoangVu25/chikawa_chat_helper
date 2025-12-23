@@ -15,8 +15,9 @@ import { MongoDBAtlasVectorSearch } from "@langchain/mongodb"   // Vector search
 import { MongoClient } from "mongodb"                          // MongoDB database client
 import { z } from "zod"                                        // Schema validation library
 import "dotenv/config"                                         // Load environment variables from .env file
+import mongoose from "mongoose";                               // Import mongoose for connection
 import { PRESET_ANSWERS } from "../cache/presetAnswers.js";            //Load answer cache
-import { connectConversationDB, ConversationModel } from "../models/conversation.model.ts"
+import { ConversationModel } from "../models/conversation.model.ts" // Import the model directly
 
 //main
 // Utility function to handle API rate limits with exponential backoff
@@ -43,14 +44,20 @@ async function retryWithBackoff<T>(
   }
   throw new Error("Max retries exceeded") // This should never be reached
 }
-
 // Main function that creates and runs the AI agent
-export async function callAgent(client: MongoClient, query: string, thread_id: string) {
+export async function callAgent(client: MongoClient, query: string, thread_id: string, userId: string | number | null, shouldSave = true) {
   try {
     // Database configuration
     const dbName = "inventory_database"        // Name of the MongoDB database
     const db = client.db(dbName)              // Get database instance
     const collection = db.collection("items") // Get the 'items' collection
+
+    // Connect to MongoDB Atlas for ConversationModel (similar to test file)
+    console.log("🔌 Connecting to MongoDB Atlas for conversation model...");
+    await mongoose.connect(process.env.MONGODB_ATLAS_URI!, {
+      dbName: dbName,
+    });
+    console.log("✅ Connected to inventory_database for conversation model");
 
     // Define the state structure for the agent workflow
     const GraphState = Annotation.Root({
@@ -101,8 +108,7 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
             }),
             dbConfig
           )
-
-          console.log("Performing vector search...")
+console.log("Performing vector search...")
           // Perform semantic search using vector embeddings
           const result = await vectorStore.similaritySearchWithScore(query, n)
           console.log(`Vector search returned ${result.length} results`)
@@ -162,7 +168,7 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
         schema: z.object({                                      // Input validation schema
           query: z.string().describe("The search query"),      // Required string parameter
           n: z.number().optional().default(10)                 // Optional number parameter with default
-            .describe("Number of results to return"),
+.describe("Number of results to return"),
         }),
       }
     )
@@ -174,7 +180,7 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
 
     // Initialize the AI model (Google's Gemini)
     const model = new ChatGoogleGenerativeAI({
-      model: "gemini-2.0-flash",         //  Use Gemini 1.5 Flash model
+      model: "gemini-2.5-flash",         //  Use Gemini 1.5 Flash model
       temperature: 0,                    // Deterministic responses (no randomness)
       maxRetries: 0,                     // Disable built-in retries (we handle our own)
       apiKey: process.env.GOOGLE_API_KEY, // Google API key from environment
@@ -203,7 +209,7 @@ export async function callAgent(client: MongoClient, query: string, thread_id: s
             - If customer make a question about total item in shop or in database, you must response that: about more than 1500 item.
             - You are chatbot for Japanese's shop and the item can be shipped to many country in Asia.
             - Only use English or Vietnamese.
-            - If the customer doesn’t clearly specify the type of product they want and only tells about budget, respond with the following suggestion, ensuring all available categories are mentioned:
+            - If the customer doesn't clearly specify the type of product they want and only tells about budget, respond with the following suggestion, ensuring all available categories are mentioned:
             "That's great! To help me find the perfect item within your budget, could you tell me what kind of product you are looking for?
             We currently offer a wide range of categories, including: **Apparel**, **Backpacks**, **Food Items**, **PC/Smartphone Accessories**, **Stationery**, **Kitchen Goods**, **Interior Decor**, **Outdoor Gear**, **Amenities**, and **Plush Toys/Mascots**.
 
@@ -213,8 +219,6 @@ You already have access to 3 cached preset answers (stored in memory):
 1️.Popular items → {popular}
 2️.Kitchen goods → {kitchen}
 3️.Mascots → {mascots}
-
-
 IMPORTANT: You have access to an item_lookup tool that searches the goods inventory database. ALWAYS use this tool when customers ask about goods items, even if the tool returns errors or empty results.
 
 When using the item_lookup tool:
@@ -273,30 +277,38 @@ Current time: {time}`,
     const response = finalState.messages[finalState.messages.length - 1].content
     console.log("Agent response:", response)
 
-await connectConversationDB(process.env.MONGODB_ATLAS_URI)
-
     const messages = finalState.messages.map((m: any) => ({
       sender: m._getType?.() === "human" ? "user" : "bot",
       content: m.content,
       timestamp: new Date(),
     }))
 
-    const userId = 3;
+    console.log(`${messages} #######`)
 
-    await ConversationModel.findOneAndUpdate(
-      { threadId: thread_id },
-      {
-        threadId: thread_id,
-        userId: userId, // hoặc lấy từ token/session nếu có
-        agent_type: 1,
-        messages: messages,
-        role: userId ? 2 : 1,
-        createdAt: new Date(),
-      },
-      { upsert: true, new: true }
-    )
+    if (shouldSave && userId !== null) {
+      try {
+const conversationData = {
+          threadId: thread_id,
+          userId: typeof userId === 'string' ? parseInt(userId) : userId,
+          agent_type: 1,
+          role: 2,
+          messages: messages,
+          createdAt: new Date(),
+        };
 
-    console.log("💾 Conversation saved to Atlas")
+        console.log("💾 Saving conversation...");
+        const saved = await ConversationModel.findOneAndUpdate(
+          { threadId: conversationData.threadId },
+          conversationData,
+          { upsert: true, new: true, runValidators: true }
+        );
+
+        console.log("✅ SUCCESS! Conversation saved with ID:", saved._id);
+      } catch (dbError: any) {
+        console.error("❌ FAILED to save conversation:", dbError.message);
+      }
+    }
+    
     return response // Return the AI's final response
 
   } catch (error: any) {
@@ -310,5 +322,9 @@ await connectConversationDB(process.env.MONGODB_ATLAS_URI)
     } else { // Generic error
       throw new Error(`Agent failed: ${error.message}`)
     }
+  } finally {
+    // Close the mongoose connection to clean up resources
+    await mongoose.connection.close();
+    console.log("🔌 MongoDB connection closed.");
   }
 }
